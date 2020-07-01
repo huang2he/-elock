@@ -1,0 +1,838 @@
+#include <REG51.h>
+#include<intrins.h>
+#define LCM_Data  P0
+#define uchar unsigned char 
+#define uint  unsigned int
+#define w 6				//定义密码位数
+sbit lcd1602_rs=P2^7;
+sbit lcd1602_rw=P2^6;
+sbit lcd1602_en=P2^5;
+
+sbit Scl=P3^4;			//24C02串行时钟
+sbit Sda=P3^5;			//24C02串行数据
+
+sbit ALAM = P2^1;		//报警	
+sbit KEY = P2^0;		//开锁
+
+sbit open_led=P2^2;		//开锁指示灯
+
+bit  operation=0;		//操作标志位
+bit  pass=0;			//密码正确标志
+bit  ReInputEn=0;		//重置输入充许标志	
+bit  s3_keydown=0;		//3秒按键标志位
+bit  key_disable=0;		//锁定键盘标志
+
+unsigned char countt0,second;	//t0中断计数器,秒计数器
+
+void Delay5Ms(void);
+
+unsigned char code a[]={0xFE,0xFD,0xFB,0xF7}; 											//控盘扫描控制表
+
+unsigned char code start_line[]	= {"password:       "};
+unsigned char code name[] 	 	= {"===Coded Lock==="};												//显示名称
+unsigned char code Correct[] 	= {"     correct    "};			 								//输入正确
+unsigned char code Error[]   	= {"      error     "};  											//输入错误
+unsigned char code codepass[]	= {"      pass      "}; 
+unsigned char code LockOpen[]	= {"      open      "};												//OPEN
+unsigned char code SetNew[] 	= {"SetNewWordEnable"};
+unsigned char code Input[]   	= {"input:          "};												//INPUT
+unsigned char code ResetOK[] 	= {"ResetPasswordOK "};
+unsigned char code initword[]	= {"Init password..."};
+unsigned char code Er_try[]		= {"error,try again!"};
+unsigned char code again[]		= {"input again     "};
+
+unsigned char InputData[6];																//输入密码暂存区
+unsigned char CurrentPassword[6]={1,3,1,4,2,0}; 														//当前密码值
+unsigned char TempPassword[6];
+unsigned char N=0;				//密码输入位数记数
+unsigned char ErrorCont;			//错误次数计数
+unsigned char CorrectCont;			//正确输入计数
+unsigned char ReInputCont; 			//重新输入计数
+unsigned char code initpassword[6]={0,0,0,0,0,0};
+
+
+//=====================5ms延时==============================
+void Delay5Ms(void)
+{
+	unsigned int TempCyc = 5552;
+	while(TempCyc--);
+}
+
+//===================400ms延时==============================
+void Delay400Ms(void)
+{
+ unsigned char TempCycA = 5;
+ unsigned int TempCycB;
+ while(TempCycA--)
+ {
+  TempCycB=7269;
+  while(TempCycB--);
+ }
+}
+
+//=============================================================================================
+//================================24C02========================================================
+//=============================================================================================
+
+void mDelay(uint t) //延时
+{ 
+	uchar i;
+   	while(t--)
+   	{
+   		for(i=0;i<125;i++)
+   		{;}
+   	}
+}
+   
+
+void Nop(void)		  //空操作
+{
+ 	_nop_();
+ 	_nop_();
+ 	_nop_();
+ 	_nop_();
+}
+
+
+/*起始条件*/
+
+void Start(void)
+{
+ 	Sda=1;
+ 	Scl=1;
+ 	Nop();
+ 	Sda=0;
+ 	Nop();
+}
+
+
+ /*停止条件*/
+void Stop(void)
+{
+ 	Sda=0;
+ 	Scl=1;
+ 	Nop();
+ 	Sda=1;
+ 	Nop();
+}
+
+/*应答位*/
+void Ack(void)
+{
+	Sda=0;
+	Nop();
+	Scl=1;
+	Nop();
+	Scl=0;
+}
+
+/*反向应答位*/
+void NoAck(void)
+{
+ 	Sda=1;
+ 	Nop();
+ 	Scl=1;
+ 	Nop();
+ 	Scl=0;
+}
+
+ /*发送数据子程序，Data为要求发送的数据*/
+void Send(uchar Data)
+{
+   	uchar BitCounter=8;
+   	uchar temp;
+   	do
+   	{
+   		temp=Data;
+   		Scl=0;
+   		Nop();
+   		if((temp&0x80)==0x80)
+   		Sda=1;
+   		else 
+   		Sda=0;
+   		Scl=1;
+   		temp=Data<<1;
+   		Data=temp;
+   		BitCounter--;
+   	}
+   	while(BitCounter);
+   	Scl=0;
+}
+
+/*读一字节的数据，并返回该字节值*/
+uchar Read(void)
+{
+    uchar temp=0;
+	uchar temp1=0;
+	uchar BitCounter=8;
+	Sda=1;
+	do{
+	Scl=0;
+	Nop();
+	Scl=1;
+	Nop();
+	if(Sda)
+	temp=temp|0x01;
+	else
+	temp=temp&0xfe;
+	if(BitCounter-1)
+	{
+	temp1=temp<<1;
+	temp=temp1;
+	}
+	BitCounter--;
+	}
+	while(BitCounter);
+	return(temp);
+	}
+
+void WrToROM(uchar Data[],uchar Address,uchar Num)
+{
+  uchar i;
+  uchar *PData;
+  PData=Data;
+  for(i=0;i<Num;i++)
+  {
+  Start();
+  Send(0xa0);
+  Ack();
+  Send(Address+i);
+  Ack();
+  Send(*(PData+i));
+  Ack();
+  Stop();
+  mDelay(20);
+  }
+}
+
+void RdFromROM(uchar Data[],uchar Address,uchar Num)
+{
+  uchar i;
+  uchar *PData;
+  PData=Data;
+  for(i=0;i<Num;i++)
+  {
+  Start();
+  Send(0xa0);
+  Ack();
+  Send(Address+i);
+  Ack();
+  Start();
+  Send(0xa1);
+  Ack();
+  *(PData+i)=Read();
+  Scl=0;
+  NoAck();
+  Stop();
+  }
+}
+
+
+//==================================================================================================
+//=======================================LCD1602====================================================
+//==================================================================================================
+
+#define yi 0x80 //LCD第一行的初始位置,因为LCD1602字符地址首位D7恒定为1（100000000=80）
+#define er 0x80+0x40 //LCD第二行初始位置（因为第二行第一个字符位置地址是0x40）
+
+
+//----------------延时函数，后面经常调用----------------------
+void delay(uint xms)//延时函数，有参函数
+{
+	uint x,y;
+	for(x=xms;x>0;x--)
+	 for(y=110;y>0;y--);
+}
+
+//--------------------------写指令---------------------------
+write_1602com(uchar com)//****液晶写入指令函数****
+{
+	lcd1602_rs=0;//数据/指令选择置为指令
+	lcd1602_rw=0; //读写选择置为写
+	P0=com;//送入数据
+	delay(1);
+	lcd1602_en=1;//拉高使能端，为制造有效的下降沿做准备
+	delay(1);
+	lcd1602_en=0;//en由高变低，产生下降沿，液晶执行命令
+}
+
+//-------------------------写数据-----------------------------
+write_1602dat(uchar dat)//***液晶写入数据函数****
+{
+	lcd1602_rs=1;//数据/指令选择置为数据
+	lcd1602_rw=0; //读写选择置为写
+	P0=dat;//送入数据
+	delay(1);
+	lcd1602_en=1; //en置高电平，为制造下降沿做准备
+	delay(1);
+	lcd1602_en=0; //en由高变低，产生下降沿，液晶执行命令
+}
+
+//-------------------------初始化-------------------------
+void lcd_init(void)
+{
+	write_1602com(0x38);//设置液晶工作模式，意思：16*2行显示，5*7点阵，8位数据
+	write_1602com(0x0c);//开显示不显示光标
+	write_1602com(0x06);//整屏不移动，光标自动右移
+	write_1602com(0x01);//清显示
+}
+//========================================================================================
+//=========================================================================================
+
+
+
+
+//==============将按键值编码为数值=========================
+unsigned char coding(unsigned char m)	 
+{
+	unsigned char k;
+	
+	switch(m)
+	{
+		case (0x11): k=1;break;
+		case (0x21): k=2;break;
+		case (0x41): k=3;break;
+		case (0x81): k='A';break;
+		case (0x12): k=4;break;
+		case (0x22): k=5;break;
+		case (0x42): k=6;break;
+		case (0x82): k='B';break;
+		case (0x14): k=7;break;
+		case (0x24): k=8;break;
+		case (0x44): k=9;break;
+		case (0x84): k='C';break;
+		case (0x18): k='*';break;
+		case (0x28): k=0;break;
+		case (0x48): k='#';break;
+		case (0x88): k='D';break;
+	}
+	return(k);
+}
+
+
+//=====================按键检测并返回按键值===============================
+unsigned char keynum(void)
+{
+ 	unsigned char row,col,i;
+ 	P1=0xf0;
+ 	if((P1&0xf0)!=0xf0)
+ 	{
+	   	Delay5Ms();
+        Delay5Ms();
+   		if((P1&0xf0)!=0xf0)
+		{
+    		row=P1^0xf0;          //确定行线
+			i=0;
+			P1=a[i];	          //精确定位
+			while(i<4)
+			{
+	 			if((P1&0xf0)!=0xf0)
+	  			{
+	   				col=~(P1&0xff);	  //确定列线
+	   				break;            //已定位后提前退出   
+	  			}
+				else 
+	  			{
+	   				i++;
+	   				P1=a[i];
+	  			}
+			}
+		}
+		else 
+		{
+			return 0;
+		}
+	
+		while((P1&0xf0)!=0xf0);
+
+		return (row|col);	 		//行线与列线组合后返回
+ 	}
+ 	else return 0;	         		//无键按下时返回0
+}
+
+
+
+
+//=======================一声提示音，表示有效输入========================
+void OneAlam(void)
+{
+	ALAM=0;
+	Delay5Ms();
+    ALAM=1;
+}
+
+//========================二声提示音，表示操作成功========================
+void TwoAlam(void)
+{
+	ALAM=0;
+	Delay5Ms();
+    ALAM=1;
+    Delay5Ms();
+	ALAM=0;
+	Delay5Ms();
+    ALAM=1;
+}
+
+//========================三声提示音,表示错误========================
+void ThreeAlam(void)
+{
+	ALAM=0;
+	Delay5Ms();
+    ALAM=1;
+    Delay5Ms();
+	ALAM=0;
+	Delay5Ms();
+    ALAM=1;
+    Delay5Ms();
+	ALAM=0;
+	Delay5Ms();
+    ALAM=1;
+
+}
+
+//=====================显示输入的N个数字，用H代替以便隐藏============================
+void DisplayOne(void)
+{
+//	DisplayOneChar(9+N,1,'*');
+	write_1602com(yi+5+N);
+	write_1602dat('*');
+}
+
+//=======================显示提示输入=========================
+void DisplayChar(void)
+{
+	unsigned char i;
+	if(pass==1)
+	{
+		//DisplayListChar(0,1,LockOpen);
+		write_1602com(er);
+		for(i=0;i<16;i++)
+		{
+			write_1602dat(LockOpen[i]);	
+		}
+	}
+	else
+	{
+		if(N==0)
+		{
+			//DisplayListChar(0,1,Error);
+			write_1602com(er);
+			for(i=0;i<16;i++)
+			{
+				write_1602dat(Error[i]);	
+			}
+		}
+		else
+		{
+			//DisplayListChar(0,1,start_line);	
+			write_1602com(er);
+			for(i=0;i<16;i++)
+			{
+				write_1602dat(start_line[i]);	
+			}
+		}
+	}
+}
+
+void DisplayInput(void)
+{
+	unsigned char i;
+	if(CorrectCont==1)
+	{
+		//DisplayListChar(0,0,Input);
+		write_1602com(er);
+		for(i=0;i<16;i++)
+		{
+			write_1602dat(Input[i]);	
+		}
+	}
+}
+
+
+//========================重置密码==================================================
+//==================================================================================
+void ResetPassword(void)
+{
+	unsigned char i;	
+	unsigned char j;
+	if(pass==0)
+	{
+		pass=0;
+		DisplayChar();
+		ThreeAlam();
+	}
+	else
+	{
+    	if(ReInputEn==1)
+		{
+			if(N==6)
+			{
+				ReInputCont++;				
+				if(ReInputCont==2)
+				{
+					for(i=0;i<6;)
+					{
+						if(TempPassword[i]==InputData[i])	//将两次输入的新密码作对比
+							i++;
+						else
+						{
+							//DisplayListChar(0,1,Error);
+							write_1602com(er);
+							for(j=0;j<16;j++)
+							{
+								write_1602dat(Error[j]);	
+							}
+							ThreeAlam();			//错误提示	
+							pass=0;
+							ReInputEn=0;			//关闭重置功能，
+							ReInputCont=0;
+							DisplayChar();
+							break;
+						}
+					} 
+					if(i==6)
+					{
+						//DisplayListChar(0,1,ResetOK);
+						write_1602com(er);
+						for(j=0;j<16;j++)
+						{
+							write_1602dat(ResetOK[j]);	
+						}
+
+						TwoAlam();				//操作成功提示
+					 	WrToROM(TempPassword,0,6);		//将新密码写入24C02存储
+						ReInputEn=0;
+					}
+					ReInputCont=0;
+					CorrectCont=0;
+				}
+				else
+				{
+					OneAlam();
+					//DisplayListChar(0, 1, again); 		//显示再次输入一次
+					write_1602com(er);
+					for(j=0;j<16;j++)
+					{
+						write_1602dat(again[j]);	
+					}					
+					for(i=0;i<6;i++)
+					{
+						TempPassword[i]=InputData[i];		//将第一次输入的数据暂存起来						
+					}
+				}
+
+			N=0;						//输入数据位数计数器清零
+		   }
+	    }
+	}
+
+}
+
+
+
+//=======================输入密码错误超过三过，报警并锁死键盘======================
+void Alam_KeyUnable(void)
+{
+	P1=0x00;
+	{
+		ALAM=~ALAM;
+		Delay5Ms();
+	}
+}
+
+
+//=======================取消所有操作============================================
+void Cancel(void)
+{	
+	unsigned char i;
+	unsigned char j;
+	//DisplayListChar(0, 1, start_line); 
+	write_1602com(er);
+	for(j=0;j<16;j++)
+	{
+		write_1602dat(start_line[j]);	
+	}
+	TwoAlam();				//提示音
+	for(i=0;i<6;i++)
+	{
+		InputData[i]=0;
+	}
+	KEY=1;					//关闭锁
+	ALAM=1;					//报警关
+	operation=0;			//操作标志位清零
+	pass=0;					//密码正确标志清零
+	ReInputEn=0;			//重置输入充许标志清零
+	ErrorCont=0;			//密码错误输入次数清零
+	CorrectCont=0;			//密码正确输入次数清零
+	ReInputCont=0;			//重置密码输入次数清零 
+	open_led=1;
+	s3_keydown=0;
+	key_disable=0;
+	N=0;					//输入位数计数器清零
+}
+
+
+//==========================确认键，并通过相应标志位执行相应功能===============================
+void Ensure(void)
+{	
+	unsigned char i,j;
+	RdFromROM(CurrentPassword,0,6); 					//从24C02里读出存储密码
+    if(N==6)
+	{
+	    if(ReInputEn==0)							//重置密码功能未开启
+		{
+			for(i=0;i<6;)
+   			{					
+				if(CurrentPassword[i]==InputData[i])
+				{
+					i++;
+				}
+				else 
+				{			
+					ErrorCont++;
+					if(ErrorCont==3)			//错误输入计数达三次时，报警并锁定键盘
+					{
+						write_1602com(er);
+						for(i=0;i<16;i++)
+						{
+							write_1602dat(Error[i]);	
+						}
+						do
+						Alam_KeyUnable();
+						while(1);
+					}
+					else
+					{
+						TR0=1;				//开启定时
+						key_disable=1;			//锁定键盘
+						pass=0;
+						break;
+					}
+				}
+			}
+
+			if(i==6)
+			{
+				CorrectCont++;
+				if(CorrectCont==1)				//正确输入计数，当只有一次正确输入时，开锁，
+				{
+					//DisplayListChar(0,1,LockOpen);
+					write_1602com(er);
+					for(j=0;j<16;j++)
+					{
+						write_1602dat(LockOpen[j]);	
+					}
+					TwoAlam();			//操作成功提示音
+					KEY=0;											//开锁
+					pass=1;											//置正确标志位
+					TR0=1;											//开启定时
+					open_led=0;										//开锁指示灯亮
+					for(j=0;j<6;j++)								//将输入清除
+					{
+						InputData[i]=0;
+					}
+				}	
+				else												//当两次正确输入时，开启重置密码功能
+				{
+					//DisplayListChar(0,1,SetNew);
+					write_1602com(er);
+					for(j=0;j<16;j++)
+					{
+						write_1602dat(SetNew[j]);	
+					}
+					TwoAlam();									    //操作成功提示
+					ReInputEn=1;									//允许重置密码输入
+					CorrectCont=0;									//正确计数器清零
+				}
+	  		}
+	
+			else			//=========================当第一次使用或忘记密码时可以用131420对其密码初始化============
+			{
+				if((InputData[0]==1)&&(InputData[1]==3)&&(InputData[2]==1)&&(InputData[3]==4)&&(InputData[4]==2)&&(InputData[5]==0))
+		  	 	{
+					WrToROM(initpassword,0,6); 				//强制将初始密码写入24C02存储
+					//DisplayListChar(0,1,initword);			//显示初始化密码
+					write_1602com(er);
+					for(j=0;j<16;j++)
+					{
+						write_1602dat(initword[j]);	
+					}
+					TwoAlam();
+					Delay400Ms();
+					TwoAlam();
+					N=0;
+				}
+				else
+				{
+					//DisplayListChar(0,1,Error);
+					write_1602com(er);
+					for(j=0;j<16;j++)
+					{
+						write_1602dat(Error[j]);	
+					}
+ 					ThreeAlam();										//错误提示音
+					pass=0;	
+				}
+			}
+		}
+
+		else											//当已经开启重置密码功能时，而按下开锁键，
+		{
+			//DisplayListChar(0,1,Er_try);
+			write_1602com(er);
+			for(j=0;j<16;j++)
+			{
+				write_1602dat(Er_try[j]);	
+			}
+			ThreeAlam();
+		}
+	}
+
+	else
+	{
+		//DisplayListChar(0,1,Error);
+		write_1602com(er);
+		for(j=0;j<16;j++)
+		{
+			write_1602dat(Error[j]);	
+		}
+
+ 		ThreeAlam();										//错误提示音
+		pass=0;	
+	}
+	
+	N=0;													//将输入数据计数器清零，为下一次输入作准备
+
+	operation=1;
+}
+
+
+//==============================主函数===============================
+void main(void)
+{
+ 	unsigned char KEY,NUM;
+	unsigned char i,j;
+ 	P1=0xFF; 
+	TMOD=0x11;
+ 	TL0=0xB0;
+ 	TH0=0x3C;
+ 	EA=1;
+ 	ET0=1;	
+ 	TR0=0;
+ 	Delay400Ms(); 	//启动等待，等LCM讲入工作状态
+ 	lcd_init(); 	//LCD初始化
+	write_1602com(yi);//日历显示固定符号从第一行第0个位置之后开始显示
+	for(i=0;i<16;i++)
+	{
+		write_1602dat(name[i]);//向液晶屏写日历显示的固定符号部分
+	}
+	write_1602com(er);//时间显示固定符号写入位置，从第2个位置后开始显示
+	for(i=0;i<16;i++)
+	{
+		write_1602dat(start_line[i]);//写显示时间固定符号，两个冒号
+	}
+	write_1602com(er+9);	//设置光标位置
+	write_1602com(0x0f);	//设置光标为闪烁
+ 	Delay5Ms(); //延时片刻(可不要)
+
+ 	N=0;														//初始化数据输入位数
+ 	while(1)
+ 	{
+		if(key_disable==1)
+			Alam_KeyUnable();
+		else
+			ALAM=1;								//关报警
+
+		KEY=keynum();
+		if(KEY!=0)
+		{	
+			if(key_disable==1)
+			{
+				second=0;
+			}
+			else
+			{
+				NUM=coding(KEY);
+				{
+					switch(NUM)
+					{
+						case ('A'): 	; 					break;
+						case ('B'):		;     				break;
+						case ('C'): 	; 					break;
+						case ('D'): ResetPassword();		break;      //重新设置密码
+						case ('*'): Cancel();				break;      //取消当前输入
+						case ('#'): Ensure(); 				break;   	//确认键，
+						default: 
+						{	
+							//DisplayListChar(0,1,Input);
+							write_1602com(er);
+							for(i=0;i<16;i++)
+							{
+								write_1602dat(Input[i]);
+							}
+						    operation=0;
+							if(N<6)                   					//当输入的密码少于6位时，接受输入并保存，大于6位时则无效。
+							{  
+								OneAlam();								//按键提示音						
+								//DisplayOneChar(6+N,1,'*');
+						 		for(j=0;j<=N;j++)
+								{
+									write_1602com(er+6+j);
+									write_1602dat('*');
+								}
+								InputData[N]=NUM;
+								N++;
+							}
+							else										//输入数据位数大于6后，忽略输入
+							{
+								N=6;
+						 		break;
+							}
+						}
+					}
+				}
+			}
+	 	} 
+	}
+}
+
+//*********************************中断服务函数**************************************
+void  time0_int(void) interrupt 1 
+{
+ 	TL0=0xB0;
+ 	TH0=0x3C;
+ 	//TR0=1;
+ 	countt0++;
+  	if(countt0==20)
+   	{
+		countt0=0;
+		second++;
+		if(pass==1)
+		{
+			if(second==1)
+			{
+				open_led=1;			//关指示灯
+				TR0=0;				//关定时器
+				TL0=0xB0;
+ 				TH0=0x3C;
+				second=0;
+			}
+		}
+		else
+		{
+			if(second==3)
+			{
+				TR0=0;
+				second=0;
+				key_disable=0;	
+				s3_keydown=0;	
+				TL0=0xB0;
+				TH0=0x3C;
+			}
+			else
+			    TR0=1;
+		}
+			
+   	}
+}
+

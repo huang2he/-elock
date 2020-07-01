@@ -1,0 +1,583 @@
+C51 COMPILER V9.01   NEW                                                                   06/14/2020 21:28:11 PAGE 1   
+
+
+C51 COMPILER V9.01, COMPILATION OF MODULE NEW
+OBJECT MODULE PLACED IN new.OBJ
+COMPILER INVOKED BY: C:\Keil\C51\BIN\C51.EXE new.c OMF2 BROWSE DEBUG
+
+line level    source
+
+   1          #include <REG52.h>
+   2          #include<intrins.h>
+   3          sbit K1=P1^2;
+   4          sbit ALAM = P2^5;                                                                                         
+             -       //±®æØ        
+   5          sbit open_led=P2^3;                                                                                       
+             -         //ø™À¯÷∏ æµ∆        
+   6          /*LCDΩ”ø⁄∂®“Â*/
+   7          sbit LcdRS   = P2^0;                                                                                      
+             -//lcd ˝æ›/√¸¡Ó—°‘Ò∂À   ˝æ›1√¸¡Ó0
+   8          sbit LcdRW   = P2^1;                                                                                      
+             -//lcd∂¡/–¥—°‘Ò∂À    ∂¡1–¥0
+   9          sbit LcdEn   = P2^2;                                                                                      
+             -//lcd πƒ‹øÿ÷∆∂À  1”––ß
+  10          sfr  LcdIO   = 0x80;                                                                                      
+             -//lcd ˝æ›Ω”ø⁄ P0=0x80
+  11          
+  12          unsigned char code a[]={0xFE,0xFD,0xFB,0xF7};                                         //øÿ≈Ã…®√Ëøÿ÷∆±Ì
+  13                         
+  14          unsigned char countt0,second;                                                                        //t0÷
+             -–∂œº∆ ˝∆˜,√Îº∆ ˝∆˜
+  15          unsigned char code start_line[]        = {"password:       "};
+  16          unsigned char code name[]                  = {"===Coded Lock==="};                     //œ‘ æ√˚≥∆         
+             -        
+  17          unsigned char code Error[]           = {"      error     "};                  // ‰»Î¥ÌŒÛ
+  18          unsigned char code codepass[]        = {"      pass      "};
+  19          unsigned char code LockOpen[]        = {"      open      "};                        //OPEN
+  20          
+  21          char InputData[6];                                                                                        
+             -        // ‰»Î√‹¬Î‘›¥Ê«¯
+  22          unsigned char CurrentPassword[6]={6,5,4,3,2,1};                                 //µ±«∞√‹¬Î÷µ
+  23          unsigned char N=0;                                                                                        
+             -        //√‹¬Î ‰»ÎŒª ˝º« ˝
+  24          unsigned char ErrorCont;                                                                                //
+             -¥ÌŒÛ¥Œ ˝º∆ ˝
+  25          unsigned char KEY_SCAN,NUM;
+  26          
+  27          /****œÚLCD–¥»Î√¸¡ÓªÚ ˝æ›≤ø∑÷****/
+  28          #define LCD_COMMAND         0         //  ‰≥ˆ÷∏¡Ó
+  29          #define LCD_DATA            1         //  ‰≥ˆ ˝æ›
+  30          #define LCD_CLEAR_SCREEN    0x01      // «Â∆¡÷∏¡Ó
+  31          #define LCD_HOME            0x02      // π‚±Í∑µªÿ‘≠µ„÷∏¡Ó
+  32          
+  33          //=====================16us∂Ã—” ±==============================
+  34          void Delay_short(unsigned int n)
+  35          {
+  36   1               unsigned int i;
+  37   1               for(i=0;i<n;i++)     
+  38   1               {;}
+  39   1      }
+  40          //=====================≥§—” ±==============================
+  41          void Delay_long(unsigned char N)
+  42          {
+  43   1              unsigned char i;
+  44   1                unsigned int j;
+C51 COMPILER V9.01   NEW                                                                   06/14/2020 21:28:11 PAGE 2   
+
+  45   1                 for(i=0;i<N;i++)
+  46   1                 {
+  47   2                      for(j=0;j<315;j++)  //“ª∏ˆ—≠ª∑16us£¨π≤5ms
+  48   2                    {;}
+  49   2         }
+  50   1      }
+  51          //=====================5ms—” ±==============================
+  52          void Delay5Ms(void)
+  53          {
+  54   1              unsigned int TempCyc = 5552;
+  55   1              while(TempCyc--);
+  56   1      }
+  57          //===================400ms—” ±==============================
+  58          void Delay400Ms(void)
+  59          {
+  60   1               unsigned char TempCycA = 5;
+  61   1               unsigned int TempCycB;
+  62   1               while(TempCycA--)
+  63   1               {
+  64   2                        TempCycB=7269;
+  65   2                        while(TempCycB--);
+  66   2               }
+  67   1      }
+  68          
+  69          /*–¥LCD◊”≥Ã–Ú                                          */
+  70          /*»Îø⁄≤Œ ˝£∫ ˝æ›style=1 ÷∏¡Ó, style=0 input£∫–¥»Îµƒƒ⁄»›*/
+  71          
+  72          void LCD_Write(bit style, unsigned char input)  
+  73          {
+  74   1          LcdRS=style;         // ˝æ›style=1  ÷∏¡Óstyle=0
+  75   1          LcdRW=0;             //–¥
+  76   1          LcdIO=input;         //P0ø⁄ ‰≥ˆ
+  77   1          Delay_short(10);     //—” ±
+  78   1          LcdEn=1;             //lcd πƒ‹
+  79   1          Delay_short(10);     //—” ±
+  80   1          LcdEn=0;             //Õ£÷π
+  81   1      }
+  82          
+  83          /****≥ı ºªØLCD≥Ã–Ú****/
+  84          void LCD_Initial()
+  85          {
+  86   1          Delay_long(6);                                     //—”≥Ÿ5*6=30ms
+  87   1          LCD_Write(LCD_COMMAND,0x38);                       //8Œª ˝æ›∂Àø⁄,2––œ‘ æ,5*7µ„’Û
+  88   1          LCD_Write(LCD_COMMAND,0x38);
+  89   1          LCD_Write(LCD_COMMAND,0x38);                       //∑¢ÀÕ»˝±È
+  90   1          Delay_short(2);                                    //—”≥Ÿ¥Û”⁄39us
+  91   1          LCD_Write(LCD_COMMAND,0x0c);                            //œ‘ æƒ£ Ω…Ë÷√£∫ø™∆Ùœ‘ æ, Œﬁπ‚±Í 0x0c
+  92   1          Delay_short(2);                             //—”≥Ÿ¥Û”⁄39us
+  93   1          LCD_Write(LCD_COMMAND,LCD_CLEAR_SCREEN);           //«Â∆¡                          0x01
+  94   1          Delay_short(100);                           //—”≥Ÿ¥Û”⁄1.53ms
+  95   1          LCD_Write(LCD_COMMAND,0x06);                               // ‰»Îƒ£ Ω…Ë÷√£∫ACµ›‘ˆ, ª≠√Ê≤ª∂Ø 0x06
+  96   1      }
+  97          
+  98          
+  99          /*“∫æß◊÷∑˚ ‰»ÎµƒŒª÷√∂®Œª≥Ã–Ú*/
+ 100          /*»Îø⁄≤Œ ˝£∫x∑∂Œß£∫0-15     y∑∂Œß£∫1£¨2*/
+ 101          void GotoXY(unsigned char x, unsigned char y)  
+ 102          {
+ 103   1          unsigned char address;
+ 104   1          if(y==1)
+ 105   1              {
+ 106   2              address=0x80+x;         //y=1œ‘ æ‘⁄µ⁄“ª––
+C51 COMPILER V9.01   NEW                                                                   06/14/2020 21:28:11 PAGE 3   
+
+ 107   2          }
+ 108   1              else
+ 109   1              {
+ 110   2              address=0xc0+x;      //y=2œ‘ æ‘⁄µ⁄∂˛––
+ 111   2          }
+ 112   1              LCD_Write(LCD_COMMAND, address);
+ 113   1      }
+ 114          
+ 115          /*Ω´◊÷∑˚¥Æ ‰≥ˆµΩ“∫æßœ‘ æ∫Ø ˝*/
+ 116          /*»Îø⁄≤Œ ˝£∫◊÷∑˚¥Æ÷∏’Î      */
+ 117          void Print(unsigned char *str)
+ 118          {
+ 119   1          while(*str!='\0')
+ 120   1          {
+ 121   2              LCD_Write(LCD_DATA,*str);
+ 122   2              str++;
+ 123   2          }
+ 124   1      }
+ 125          //*********************************************************************
+ 126          //==============Ω´∞¥º¸÷µ±‡¬ÎŒ™ ˝÷µ=========================
+ 127          unsigned char coding(unsigned char m)         
+ 128          {
+ 129   1              unsigned char k;
+ 130   1              switch(m)
+ 131   1              {
+ 132   2      //                case (0x18): k=3;break;
+ 133   2      //                case (0x28): k=7;break;
+ 134   2      //                case (0x48): k='#';break;
+ 135   2      //                case (0x88): k='D';break;
+ 136   2                      case (0x14): k=3;break;
+ 137   2                      case (0x24): k=6;break;
+ 138   2                      case (0x44): k=9;break;
+ 139   2                      case (0x84): k='#';break;
+ 140   2                      case (0x12): k=2;break;
+ 141   2                      case (0x22): k=5;break;
+ 142   2                      case (0x42): k=8;break;
+ 143   2                      case (0x82): k=0;break;
+ 144   2                      case (0x11): k=1;break;
+ 145   2                      case (0x21): k=4;break;
+ 146   2                      case (0x41): k=7;break;
+ 147   2                      case (0x81): k='*';break;
+ 148   2              }
+ 149   1              return(k);
+ 150   1      }
+ 151          //=====================∞¥º¸ºÏ≤‚≤¢∑µªÿ∞¥º¸÷µ===============================
+ 152          unsigned char keynum(void)
+ 153          {
+ 154   1               unsigned char row,col,i;
+ 155   1               P3=0xf0;
+ 156   1               if((P3&0xf0)!=0xf0)
+ 157   1               {
+ 158   2                         Delay5Ms();
+ 159   2                    Delay5Ms();
+ 160   2                         if((P3&0xf0)!=0xf0)
+ 161   2                      {
+ 162   3                          row=P3^0xf0;          //»∑∂®––œﬂ
+ 163   3                              i=0;
+ 164   3                              P3=a[i];                  //æ´»∑∂®Œª
+ 165   3                              while(i<4)
+ 166   3                              {
+ 167   4                                       if((P3&0xf0)!=0xf0)
+ 168   4                                        {
+C51 COMPILER V9.01   NEW                                                                   06/14/2020 21:28:11 PAGE 4   
+
+ 169   5                                                 col=~(P3&0xff);          //»∑∂®¡–œﬂ
+ 170   5                                                 break;            //“—∂®Œª∫ÛÃ·«∞ÕÀ≥ˆ   
+ 171   5                                        }
+ 172   4                                      else
+ 173   4                                        {
+ 174   5                                                 i++;
+ 175   5                                                 P3=a[i];
+ 176   5                                        }
+ 177   4                              }
+ 178   3                      }
+ 179   2                      else
+ 180   2                      {                 
+ 181   3                              return 0xff;        
+ 182   3                      }
+ 183   2                      while((P3&0xf0)!=0xf0);
+ 184   2                      return (row|col);                         //––œﬂ”Î¡–œﬂ◊È∫œ∫Û∑µªÿ
+ 185   2               }
+ 186   1               else
+ 187   1              {
+ 188   2                      return 0xff;                                 //Œﬁº¸∞¥œ¬ ±∑µªÿ0xff
+ 189   2              }
+ 190   1      }
+ 191          //***************************************************************************************/
+ 192          //=======================“ª…˘Ã· æ“Ù£¨±Ì æ”––ß ‰»Î========================
+ 193          void OneAlam(void)
+ 194          {
+ 195   1              unsigned char y;
+ 196   1              for(y=0;y<30;y++)
+ 197   1              {
+ 198   2              ALAM=0;
+ 199   2              Delay_short(50);
+ 200   2                ALAM=1;
+ 201   2              Delay_short(50);
+ 202   2              }
+ 203   1      
+ 204   1      }
+ 205          
+ 206          //========================∂˛…˘Ã· æ“Ù£¨±Ì æ≤Ÿ◊˜≥…π¶========================
+ 207          void TwoAlam(void)
+ 208          {
+ 209   1              OneAlam();
+ 210   1              Delay5Ms();
+ 211   1          ALAM=1;
+ 212   1                Delay5Ms();
+ 213   1              OneAlam();
+ 214   1              Delay5Ms();
+ 215   1          ALAM=1;
+ 216   1      }
+ 217          //========================»˝…˘Ã· æ“Ù,±Ì æ¥ÌŒÛ========================
+ 218          void ThreeAlam(void)
+ 219          {
+ 220   1              OneAlam();
+ 221   1              Delay5Ms();
+ 222   1          ALAM=1;
+ 223   1              Delay5Ms();
+ 224   1              OneAlam();
+ 225   1              Delay5Ms();
+ 226   1          ALAM=1;
+ 227   1                Delay5Ms();
+ 228   1              OneAlam();
+ 229   1              Delay5Ms();
+ 230   1          ALAM=1;
+C51 COMPILER V9.01   NEW                                                                   06/14/2020 21:28:11 PAGE 5   
+
+ 231   1      }
+ 232          //======================= ‰»Î√‹¬Î¥ÌŒÛ≥¨π˝»˝π˝£¨±®æØ≤¢À¯À¿º¸≈Ã======================
+ 233          void Alam_KeyUnable(void)
+ 234          {
+ 235   1              P3=0x00;
+ 236   1              {
+ 237   2                      OneAlam();
+ 238   2                      Delay5Ms();
+ 239   2                  ALAM=1;
+ 240   2                      Delay5Ms();
+ 241   2              }
+ 242   1      }
+ 243          //=======================»°œ˚À˘”–≤Ÿ◊˜============================================
+ 244          void Cancel(void)
+ 245          {        
+ 246   1              unsigned char i;
+ 247   1              GotoXY(0,2);
+ 248   1              Print(start_line);        
+ 249   1              TwoAlam();                                //Ã· æ“Ù
+ 250   1              for(i=0;i<6;i++)
+ 251   1              {
+ 252   2                      InputData[i]=0;
+ 253   2              }
+ 254   1              ALAM=1;                                        //±®æØπÿ
+ 255   1              ErrorCont=0;                        //√‹¬Î¥ÌŒÛ ‰»Î¥Œ ˝«Â¡„
+ 256   1              open_led=1;                                  //÷∏ æµ∆πÿ±’
+ 257   1              N=0;                                        // ‰»ÎŒª ˝º∆ ˝∆˜«Â¡„
+ 258   1      }
+ 259          //==========================»∑»œº¸£¨≤¢Õ®π˝œ‡”¶±Í÷æŒª÷¥––œ‡”¶π¶ƒ‹===============================
+ 260          void Ensure(void)
+ 261          {        
+ 262   1              unsigned char i,j;
+ 263   1              for(i=0;i<6;)
+ 264   1              {                                       
+ 265   2                      if(CurrentPassword[i]==InputData[i])
+ 266   2                      {
+ 267   3                              i++;
+ 268   3                      }
+ 269   2                      else
+ 270   2                      {                        
+ 271   3                              ErrorCont++;
+ 272   3                              if(ErrorCont==3)                        //¥ÌŒÛ ‰»Îº∆ ˝¥Ô»˝¥Œ ±£¨±®æØ≤¢À¯∂®º¸≈Ã
+ 273   3                              {
+ 274   4                                      GotoXY(0,2);
+ 275   4                                      Print("  KeypadLocked! ");
+ 276   4                                      TR0=1;
+ 277   4                                      do
+ 278   4                                          Alam_KeyUnable();
+ 279   4                                      while(TR0);
+ 280   4                      return ;
+ 281   4                              }
+ 282   3                  break;
+ 283   3                      }
+ 284   2              }
+ 285   1      
+ 286   1              if(i==6)   //√‹¬Î’˝»∑ ‰»Î
+ 287   1              {
+ 288   2                              GotoXY(0,2);
+ 289   2                              Print(codepass);
+ 290   2                              Delay400Ms();
+ 291   2                              Delay400Ms();
+ 292   2                              GotoXY(0,2);
+C51 COMPILER V9.01   NEW                                                                   06/14/2020 21:28:11 PAGE 6   
+
+ 293   2                              Print(LockOpen);        
+ 294   2                              TwoAlam();                                           //≤Ÿ◊˜≥…π¶Ã· æ“Ù
+ 295   2                              //KEY_CLOCK=0;                                                                    
+             -                    //ø™À¯
+ 296   2                              //pass=1;                                                                         
+             -               //÷√’˝»∑±Í÷æŒª
+ 297   2                              open_led=0;                                                                       
+             -         //ø™À¯÷∏ æµ∆¡¡
+ 298   2                              for(j=0;j<6;j++)                                                                //
+             -Ω´ ‰»Î«Â≥˝
+ 299   2                              {
+ 300   3                                      InputData[i]=0;
+ 301   3                              }
+ 302   2                              while(1);
+ 303   2              }
+ 304   1              else
+ 305   1              {
+ 306   2              GotoXY(0,2);
+ 307   2                      Print(Error);        
+ 308   2                       ThreeAlam();                                                                             
+             -   //¥ÌŒÛÃ· æ“Ù
+ 309   2              Delay400Ms();
+ 310   2              GotoXY(0,2);
+ 311   2                      Print(start_line);
+ 312   2              for(j=0;j<6;j++)                                                                //Ω´ ‰»Î«Â≥˝
+ 313   2                      {
+ 314   3                              InputData[i]=0;
+ 315   3                       }
+ 316   2          }
+ 317   1              N=0;                                                                                              
+             -          //Ω´ ‰»Î ˝æ›º∆ ˝∆˜«Â¡„£¨Œ™œ¬“ª¥Œ ‰»Î◊˜◊º±∏
+ 318   1      }
+ 319          
+ 320          void test_led()
+ 321          {
+ 322   1              while(1)
+ 323   1              {
+ 324   2                      open_led=0;
+ 325   2                      Delay400Ms();
+ 326   2                      open_led=1;
+ 327   2                      Delay400Ms();
+ 328   2              }
+ 329   1      }
+ 330          
+ 331          void test_alarm()
+ 332          {
+ 333   1          while(1)
+ 334   1              {
+ 335   2                      ALAM=1;
+ 336   2                      Delay_short(60);
+ 337   2                      ALAM=0;
+ 338   2                      Delay_short(60);
+ 339   2              }
+ 340   1      }
+ 341          void timer_init()
+ 342          {
+ 343   1              TMOD=0x11;
+ 344   1               TL0=0xB0;
+ 345   1               TH0=0x3C;
+ 346   1               EA=1;
+ 347   1               ET0=1;        
+ 348   1               TR0=0;
+C51 COMPILER V9.01   NEW                                                                   06/14/2020 21:28:11 PAGE 7   
+
+ 349   1      }
+ 350          
+ 351          void test_key()
+ 352          {
+ 353   1              unsigned char code ascii[]={"0123456789ABCDEF"};
+ 354   1              KEY_SCAN=keynum();
+ 355   1              if(KEY_SCAN!=0xff)
+ 356   1              {
+ 357   2                      GotoXY(0,1);
+ 358   2                      Print("key_code:0x");
+ 359   2                      LCD_Write(LCD_DATA, ascii[KEY_SCAN/16]);
+ 360   2                      LCD_Write(LCD_DATA, ascii[KEY_SCAN%16]);
+ 361   2              }
+ 362   1      }
+ 363          void keyscan()                                        //∞¥º¸…®√Ë≥Ã–Ú
+ 364          {
+ 365   1              static bit key_sign=0;        //∞¥º¸◊‘À¯±Í÷æ
+ 366   1              static bit sign=0;
+ 367   1              static unsigned char count=0;//º∆ ˝±‰¡ø                        
+ 368   1              unsigned char i;
+ 369   1              if(K1==0)                                        //ºÏ≤‚∞¥º¸»Áπ˚Œ™0
+ 370   1              {
+ 371   2                      count++;                                        //œ˚∂∂º∆ ˝
+ 372   2                      if((count>=250)&&(key_sign==0))
+ 373   2                      {                        
+ 374   3                              key_sign=1;                        //∞¥º¸◊‘À¯±Í÷æ÷√1
+ 375   3                              sign=~sign;
+ 376   3                              if(sign==1)
+ 377   3                              {
+ 378   4                                      for(i=0;i<N;i++)
+ 379   4                                      {
+ 380   5                                              GotoXY(9+i,2);
+ 381   5                                              LCD_Write(LCD_DATA,InputData[i]+0x30);
+ 382   5                                      }
+ 383   4                              }
+ 384   3                              else
+ 385   3                              {
+ 386   4                                      for(i=0;i<N;i++)
+ 387   4                                      {
+ 388   5                                              GotoXY(9+i,2);
+ 389   5                                              LCD_Write(LCD_DATA,'*');
+ 390   5                                      }
+ 391   4                              }
+ 392   3                      }
+ 393   2              }
+ 394   1              else                                                        //∞¥º¸Ãß∆
+ 395   1              {
+ 396   2                      key_sign=0;                                //∞¥º¸◊‘À¯±Í÷æ«Â0
+ 397   2                      count=0;                                        //œ˚∂∂º∆ ˝«Â0
+ 398   2              }
+ 399   1      }
+ 400          
+ 401          //==============================÷˜∫Ø ˝===============================
+ 402          void main(void)
+ 403          {
+ 404   1               
+ 405   1              unsigned char j;
+ 406   1      //        test_led();
+ 407   1      //        test_alarm();
+ 408   1               Delay400Ms();         //∆Ù∂Øµ»¥˝£¨µ»LCMΩ≤»Îπ§◊˜◊¥Ã¨
+ 409   1               LCD_Initial();         //LCD≥ı ºªØ
+ 410   1      
+C51 COMPILER V9.01   NEW                                                                   06/14/2020 21:28:11 PAGE 8   
+
+ 411   1      //        while(1)
+ 412   1      //        {
+ 413   1      //                test_key();
+ 414   1      //        }
+ 415   1      
+ 416   1              GotoXY(0,1);//»’¿˙œ‘ æπÃ∂®∑˚∫≈¥”µ⁄“ª––µ⁄0∏ˆŒª÷√÷Æ∫Ûø™ ºœ‘ æ
+ 417   1              Print(name);//œÚ“∫æß∆¡–¥»’¿˙œ‘ æµƒπÃ∂®∑˚∫≈≤ø∑÷
+ 418   1              GotoXY(0,2);// ±º‰œ‘ æπÃ∂®∑˚∫≈–¥»ÎŒª÷√£¨¥”µ⁄2∏ˆŒª÷√∫Ûø™ ºœ‘ æ
+ 419   1              Print(start_line);//–¥œ‘ æ ±º‰πÃ∂®∑˚∫≈£¨¡Ω∏ˆ√∞∫≈
+ 420   1              GotoXY(9,2);        //…Ë÷√π‚±ÍŒª÷√
+ 421   1              LCD_Write(LCD_COMMAND,0x0f);        //…Ë÷√π‚±ÍŒ™…¡À∏
+ 422   1      
+ 423   1      //        while(1);
+ 424   1      
+ 425   1               P3=0xFF;
+ 426   1              timer_init();
+ 427   1      
+ 428   1      
+ 429   1      
+ 430   1               Delay5Ms(); //—” ±∆¨øÃ(ø…≤ª“™)
+ 431   1              N=0;                                                                                              
+             -                  //≥ı ºªØ ˝æ› ‰»ÎŒª ˝
+ 432   1               while(1)
+ 433   1               {
+ 434   2              if (!TR0)
+ 435   2                      {
+ 436   3                          KEY_SCAN=keynum();
+ 437   3                      }
+ 438   2              else
+ 439   2                      {
+ 440   3                  KEY_SCAN = 0xff;
+ 441   3              }
+ 442   2      
+ 443   2                      if(KEY_SCAN!=0xff)
+ 444   2                      {                                   
+ 445   3                                              NUM=coding(KEY_SCAN);
+ 446   3                                              switch(NUM)
+ 447   3                                              {
+ 448   4                                                      case 'A':         ;                                       
+             -  break;
+ 449   4                                                      case 'B':        ;                                     bre
+             -ak;
+ 450   4                                                      case 'C':         ;                                       
+             -  break;
+ 451   4                                                      case 'D':         ;                                       
+             - break;   
+ 452   4                                                      case '*': Cancel();                                break; 
+             -     //»°œ˚µ±«∞ ‰»Î
+ 453   4                                                      case '#': Ensure();                         break;        
+             -   //»∑»œº¸£¨
+ 454   4                                                      default:
+ 455   4                                                      {        
+ 456   5                                                              if(N<6)                                           
+             -                //µ± ‰»Îµƒ√‹¬Î…Ÿ”⁄6Œª ±£¨Ω” ‹ ‰»Î≤¢±£¥Ê£¨¥Û”⁄6Œª ±‘ÚŒﬁ–ß°£
+ 457   5                                                              {
+ 458   6      //                                                                  unsigned        char temp;
+ 459   6                                                                      OneAlam();                                
+             -                                //∞¥º¸Ã· æ“Ù                                                
+ 460   6                                                                      for(j=N;j<=N;j++)
+ 461   6                                                                      {
+ 462   7                                                                              GotoXY(9+j,2);
+ 463   7                                                                              LCD_Write(LCD_DATA,'*');
+C51 COMPILER V9.01   NEW                                                                   06/14/2020 21:28:11 PAGE 9   
+
+ 464   7                                                                      }
+ 465   6      /*                                                           if(K1==0)
+ 466   6                                                                 {
+ 467   6                                                                              GotoXY(9+N,2);
+ 468   6                                                                              temp=NUM+0x30           ;
+ 469   6                                                                              LCD_Write(LCD_DATA,temp);
+ 470   6                                                                                                        
+ 471   6                                                                      }*/
+ 472   6                                                                      InputData[N]=NUM;
+ 473   6                                                                      N++;
+ 474   6                                                              }
+ 475   5                                                              else                                              
+             -                                  // ‰»Î ˝æ›Œª ˝¥Û”⁄6∫Û£¨∫ˆ¬‘ ‰»Î
+ 476   5                                                              {
+ 477   6                                                                      N=6;
+ 478   6                                                                       
+ 479   6                                                              }
+ 480   5                                  break;
+ 481   5                                                      }
+ 482   4                                              }
+ 483   3                              }
+ 484   2                      keyscan();
+ 485   2              }
+ 486   1      }
+ 487          
+ 488          //*********************************÷–∂œ∑˛ŒÒ∫Ø ˝**************************************
+ 489          void  time0_int(void) interrupt 1
+ 490          {
+ 491   1               TL0=0xB0;
+ 492   1               TH0=0x3C;
+ 493   1               countt0++;
+ 494   1                if(countt0==20)
+ 495   1                 {
+ 496   2                      countt0=0;
+ 497   2                      second++;
+ 498   2                      if(second==10)
+ 499   2                      {
+ 500   3                                      P3=0xf0;
+ 501   3                                      TL0=0xB0;
+ 502   3                                       TH0=0x3C;
+ 503   3                                      second=0;
+ 504   3                                      ErrorCont=0;                        //√‹¬Î¥ÌŒÛ ‰»Î¥Œ ˝«Â¡„
+ 505   3              GotoXY(0,2);
+ 506   3                                      Print(start_line);
+ 507   3              TR0=0;                                //πÿ∂® ±∆˜
+ 508   3                      }
+ 509   2                              
+ 510   2                 }
+ 511   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   1104    ----
+   CONSTANT SIZE    =    135    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     19       3
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      2       1
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+C51 COMPILER V9.01   NEW                                                                   06/14/2020 21:28:11 PAGE 10  
+
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

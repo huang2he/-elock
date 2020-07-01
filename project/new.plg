@@ -1,0 +1,82 @@
+<html>
+<body>
+<pre>
+<h1>礦ision Build Log</h1>
+<h2>Project:</h2>
+C:\Users\黄哲\Desktop\4-密码锁\1-密码锁程序+注释\new.uvproj
+Project File Date:  06/14/2020
+
+<h2>Output:</h2>
+Build target '目标 1'
+assembling STARTUP.A51...
+linking...
+*** ERROR L127: UNRESOLVED EXTERNAL SYMBOL
+    SYMBOL:  ?C_START
+    MODULE:  STARTUP.obj (?C_STARTUP)
+*** ERROR L128: REFERENCE MADE TO UNRESOLVED EXTERNAL
+    SYMBOL:  ?C_START
+    MODULE:  STARTUP.obj (?C_STARTUP)
+    ADDRESS: 100000DH
+Program Size: data=9.0 xdata=0 const=0 code=15
+目标未创建
+Build target '目标 1'
+assembling STARTUP.A51...
+linking...
+*** ERROR L127: UNRESOLVED EXTERNAL SYMBOL
+    SYMBOL:  ?C_START
+    MODULE:  STARTUP.obj (?C_STARTUP)
+*** ERROR L128: REFERENCE MADE TO UNRESOLVED EXTERNAL
+    SYMBOL:  ?C_START
+    MODULE:  STARTUP.obj (?C_STARTUP)
+    ADDRESS: 100000DH
+Program Size: data=9.0 xdata=0 const=0 code=15
+目标未创建
+Build target '目标 1'
+compiling new.c...
+linking...
+*** WARNING L16: UNCALLED FUNCTION, IGNORED FOR OVERLAY PROCESS
+    NAME:    TEST_LED/NEW
+*** WARNING L16: UNCALLED FUNCTION, IGNORED FOR OVERLAY PROCESS
+    NAME:    TEST_ALARM/NEW
+*** WARNING L16: UNCALLED FUNCTION, IGNORED FOR OVERLAY PROCESS
+    NAME:    TEST_KEY/NEW
+*** WARNING L15: MULTIPLE CALL TO FUNCTION
+    NAME:    LCD_WRITE/NEW
+    CALLER1: ?C_C51STARTUP
+    CALLER2: TIME0_INT/NEW
+Program Size: data=32.4 xdata=0 const=0 code=1464
+"new" - 0 Error(s), 4 Warning(s).
+compiling new.c...
+new.c - 0 Error(s), 0 Warning(s).
+Build target '目标 1'
+linking...
+*** WARNING L16: UNCALLED FUNCTION, IGNORED FOR OVERLAY PROCESS
+    NAME:    TEST_LED/NEW
+*** WARNING L16: UNCALLED FUNCTION, IGNORED FOR OVERLAY PROCESS
+    NAME:    TEST_ALARM/NEW
+*** WARNING L16: UNCALLED FUNCTION, IGNORED FOR OVERLAY PROCESS
+    NAME:    TEST_KEY/NEW
+*** WARNING L15: MULTIPLE CALL TO FUNCTION
+    NAME:    LCD_WRITE/NEW
+    CALLER1: ?C_C51STARTUP
+    CALLER2: TIME0_INT/NEW
+Program Size: data=32.4 xdata=0 const=0 code=1464
+creating hex file from "new"...
+"new" - 0 Error(s), 4 Warning(s).
+Build target '目标 1'
+assembling STARTUP.A51...
+compiling new.c...
+linking...
+*** WARNING L16: UNCALLED FUNCTION, IGNORED FOR OVERLAY PROCESS
+    NAME:    TEST_LED/NEW
+*** WARNING L16: UNCALLED FUNCTION, IGNORED FOR OVERLAY PROCESS
+    NAME:    TEST_ALARM/NEW
+*** WARNING L16: UNCALLED FUNCTION, IGNORED FOR OVERLAY PROCESS
+    NAME:    TEST_KEY/NEW
+*** WARNING L15: MULTIPLE CALL TO FUNCTION
+    NAME:    LCD_WRITE/NEW
+    CALLER1: ?C_C51STARTUP
+    CALLER2: TIME0_INT/NEW
+Program Size: data=32.4 xdata=0 const=0 code=1464
+creating hex file from "new"...
+"new" - 0 Error(s), 4 Warning(s).
